@@ -36,7 +36,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { DEMO_TEAM_ID, DEFAULT_TAGS } from "@/lib/constants";
+import { DEFAULT_TAGS } from "@/lib/constants";
+import { useCurrentUser } from "@/lib/auth-user";
 import type { TagItem } from "@/lib/types";
 
 // Preset colors for tag color picker
@@ -85,6 +86,7 @@ const emptyTagForm: TagFormData = {
 };
 
 export default function AdminSettingsPage() {
+  const { user: currentUser } = useCurrentUser();
   const [settings, setSettings] = useState<TeamSettings>(defaultSettings);
   const [tags, setTags] = useState<TagItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,9 +124,10 @@ export default function AdminSettingsPage() {
     setLoading(true);
     setError(null);
     try {
+      const teamId = currentUser?.teamId || "";
       const [settingsRes, tagsRes] = await Promise.all([
-        fetch(`/api/settings?teamId=${DEMO_TEAM_ID}`),
-        fetch(`/api/tags?teamId=${DEMO_TEAM_ID}`),
+        fetch(`/api/settings?teamId=${teamId}`),
+        fetch(`/api/tags?teamId=${teamId}`),
       ]);
 
       if (settingsRes.ok) {
@@ -150,7 +153,7 @@ export default function AdminSettingsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
     fetchSettings();
@@ -163,7 +166,7 @@ export default function AdminSettingsPage() {
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...settings, teamId: DEMO_TEAM_ID }),
+        body: JSON.stringify({ ...settings, teamId: currentUser?.teamId || "" }),
       });
       if (!res.ok) throw new Error("Failed to save settings");
       showNotification("success", "Settings saved successfully");
@@ -222,7 +225,7 @@ export default function AdminSettingsPage() {
       const body = {
         ...tagForm,
         description: tagForm.description || null,
-        teamId: DEMO_TEAM_ID,
+        teamId: currentUser?.teamId || "",
       };
 
       let res: Response;
@@ -276,7 +279,7 @@ export default function AdminSettingsPage() {
       const res = await fetch("/api/reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teamId: DEMO_TEAM_ID }),
+        body: JSON.stringify({ teamId: currentUser?.teamId || "" }),
       });
       if (!res.ok) throw new Error("Failed to reset data");
       showNotification("success", "All data has been reset");
@@ -295,7 +298,7 @@ export default function AdminSettingsPage() {
       const res = await fetch("/api/seed", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teamId: DEMO_TEAM_ID }),
+        body: JSON.stringify({ teamId: currentUser?.teamId || "" }),
       });
       if (!res.ok) throw new Error("Failed to seed data");
       showNotification("success", "Demo data has been seeded successfully");

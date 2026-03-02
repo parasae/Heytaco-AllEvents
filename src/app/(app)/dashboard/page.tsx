@@ -7,9 +7,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DEMO_TEAM_ID, TACO_EMOJI } from "@/lib/constants";
+import { TACO_EMOJI } from "@/lib/constants";
 import { formatRelativeTime, generateTacoEmojis } from "@/lib/utils";
-import { useDemoUser } from "@/lib/demo-user";
+import { useCurrentUser } from "@/lib/auth-user";
 import type { TacoTransaction, LeaderboardEntry } from "@/lib/types";
 
 function getGreeting(): string {
@@ -333,7 +333,7 @@ function MiniLeaderboard({
 
 // --- Main Dashboard Page ---
 export default function DashboardPage() {
-  const { user: demoUser, loading: loadingUser } = useDemoUser();
+  const { user: currentUser, loading: loadingUser } = useCurrentUser();
   const [tacos, setTacos] = useState<TacoTransaction[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [stats, setStats] = useState<{
@@ -347,7 +347,7 @@ export default function DashboardPage() {
 
   const fetchData = useCallback(async () => {
     // Fetch activity feed
-    fetch(`/api/tacos?teamId=${DEMO_TEAM_ID}&limit=20`)
+    fetch(`/api/tacos?teamId=${currentUser?.teamId || ""}&limit=20`)
       .then((res) => res.json())
       .then((data) => {
         setTacos(data.tacos || []);
@@ -356,7 +356,7 @@ export default function DashboardPage() {
       .catch(() => setLoadingFeed(false));
 
     // Fetch leaderboard
-    fetch(`/api/users?teamId=${DEMO_TEAM_ID}&sort=received&limit=5`)
+    fetch(`/api/users?teamId=${currentUser?.teamId || ""}&sort=received&limit=5`)
       .then((res) => res.json())
       .then((data) => {
         const entries: LeaderboardEntry[] = (data || []).map(
@@ -370,12 +370,12 @@ export default function DashboardPage() {
       })
       .catch(() => setLoadingLeaderboard(false));
 
-    // Fetch user stats (only if we have a valid demo user ID)
-    if (!demoUser) {
+    // Fetch user stats (only if we have a valid user ID)
+    if (!currentUser?.id) {
       setLoadingStats(false);
       return;
     }
-    fetch(`/api/users/${demoUser.id}/stats`)
+    fetch(`/api/users/${currentUser.id}/stats`)
       .then((res) => res.json())
       .then((data) => {
         if (data && data.daily) {
@@ -384,7 +384,7 @@ export default function DashboardPage() {
         setLoadingStats(false);
       })
       .catch(() => setLoadingStats(false));
-  }, [demoUser]);
+  }, [currentUser]);
 
   useEffect(() => {
     if (!loadingUser) {
@@ -453,8 +453,8 @@ export default function DashboardPage() {
             <StatCard
               title="Your Rank"
               value={
-                demoUser
-                  ? leaderboard.findIndex((e) => e.id === demoUser.id) + 1 || 0
+                currentUser
+                  ? leaderboard.findIndex((e) => e.id === currentUser.id) + 1 || 0
                   : 0
               }
               icon="🏆"

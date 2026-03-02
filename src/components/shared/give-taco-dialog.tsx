@@ -18,9 +18,8 @@ import {
   TACO_EMOJI,
   MAX_TACOS_PER_MESSAGE,
   DEFAULT_TAGS,
-  DEMO_TEAM_ID,
 } from "@/lib/constants";
-import { useDemoUser } from "@/lib/demo-user";
+import { useCurrentUser } from "@/lib/auth-user";
 import type { UserProfile } from "@/lib/types";
 import { Search, Send, Loader2, Check, Sparkles } from "lucide-react";
 
@@ -30,7 +29,7 @@ interface GiveTacoDialogProps {
 }
 
 export function GiveTacoDialog({ open, onOpenChange }: GiveTacoDialogProps) {
-  const { user: demoUser } = useDemoUser();
+  const { user: currentUser } = useCurrentUser();
   const [searchQuery, setSearchQuery] = useState("");
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<UserProfile[]>([]);
@@ -47,13 +46,13 @@ export function GiveTacoDialog({ open, onOpenChange }: GiveTacoDialogProps) {
     if (!open) return;
     async function fetchUsers() {
       try {
-        const res = await fetch(`/api/users?teamId=${DEMO_TEAM_ID}`);
+        const res = await fetch(`/api/users?teamId=${currentUser?.teamId || ""}`);
         if (res.ok) {
           const data = await res.json();
           const allUsers: UserProfile[] = Array.isArray(data) ? data : data.users || [];
-          // Filter out the current demo user so they can't give tacos to themselves
-          const otherUsers = demoUser
-            ? allUsers.filter((u) => u.id !== demoUser.id)
+          // Filter out the current user so they can't give tacos to themselves
+          const otherUsers = currentUser
+            ? allUsers.filter((u) => u.id !== currentUser.id)
             : allUsers;
           setUsers(otherUsers);
         }
@@ -62,7 +61,7 @@ export function GiveTacoDialog({ open, onOpenChange }: GiveTacoDialogProps) {
       }
     }
     fetchUsers();
-  }, [open, demoUser]);
+  }, [open, currentUser]);
 
   // Filter users based on search
   useEffect(() => {
@@ -110,7 +109,7 @@ export function GiveTacoDialog({ open, onOpenChange }: GiveTacoDialogProps) {
   };
 
   const handleSubmit = async () => {
-    if (!selectedUser || !demoUser) return;
+    if (!selectedUser || !currentUser) return;
     setIsSubmitting(true);
 
     try {
@@ -118,11 +117,11 @@ export function GiveTacoDialog({ open, onOpenChange }: GiveTacoDialogProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          giverId: demoUser.id,
+          giverId: currentUser.id,
           receiverId: selectedUser.id,
           amount: tacoCount,
           message: message || null,
-          teamId: DEMO_TEAM_ID,
+          teamId: currentUser.teamId,
           tagIds: selectedTags,
         }),
       });

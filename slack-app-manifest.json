@@ -18,14 +18,14 @@
     "slash_commands": [
       {
         "command": "/tacotime",
-        "url": "https://your-domain.com/api/slack/commands",
+        "url": "https://heytaco-all-events.vercel.app/api/slack/commands",
         "description": "TacoTime commands - give tacos, check stats, view leaderboard",
         "usage_hint": "[give @user message | leaderboard | my-tacos | help]",
         "should_escape": false
       },
       {
         "command": "/tt",
-        "url": "https://your-domain.com/api/slack/commands",
+        "url": "https://heytaco-all-events.vercel.app/api/slack/commands",
         "description": "TacoTime shortcut - give tacos, check stats, view leaderboard",
         "usage_hint": "[give @user message | leaderboard | my-tacos | help]",
         "should_escape": false
@@ -33,7 +33,16 @@
     ]
   },
   "oauth_config": {
+    "redirect_urls": [
+      "https://heytaco-all-events.vercel.app/api/auth/callback/slack"
+    ],
     "scopes": {
+      "user": [
+        "identity.basic",
+        "identity.email",
+        "identity.avatar",
+        "identity.team"
+      ],
       "bot": [
         "app_mentions:read",
         "channels:history",
@@ -58,7 +67,7 @@
   },
   "settings": {
     "event_subscriptions": {
-      "request_url": "https://your-domain.com/api/slack/events",
+      "request_url": "https://heytaco-all-events.vercel.app/api/slack/events",
       "bot_events": [
         "app_mention",
         "message.channels",

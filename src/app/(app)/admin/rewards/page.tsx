@@ -42,7 +42,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn, formatDate } from "@/lib/utils";
-import { DEMO_TEAM_ID, TACO_EMOJI } from "@/lib/constants";
+import { TACO_EMOJI } from "@/lib/constants";
+import { useCurrentUser } from "@/lib/auth-user";
 import type { RewardItem, RedemptionItem } from "@/lib/types";
 
 const REWARD_TYPE_ICONS: Record<string, React.ElementType> = {
@@ -82,6 +83,7 @@ const emptyForm: RewardFormData = {
 };
 
 export default function AdminRewardsPage() {
+  const { user: currentUser } = useCurrentUser();
   const [rewards, setRewards] = useState<RewardItem[]>([]);
   const [redemptions, setRedemptions] = useState<RedemptionItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,9 +115,10 @@ export default function AdminRewardsPage() {
     setLoading(true);
     setError(null);
     try {
+      const teamId = currentUser?.teamId || "";
       const [rewardsRes, redemptionsRes] = await Promise.all([
-        fetch(`/api/rewards?teamId=${DEMO_TEAM_ID}`),
-        fetch(`/api/redemptions?teamId=${DEMO_TEAM_ID}`),
+        fetch(`/api/rewards?teamId=${teamId}`),
+        fetch(`/api/redemptions?teamId=${teamId}`),
       ]);
 
       if (!rewardsRes.ok) throw new Error("Failed to load rewards");
@@ -134,7 +137,7 @@ export default function AdminRewardsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
     fetchData();
@@ -182,7 +185,7 @@ export default function AdminRewardsPage() {
         ...formData,
         description: formData.description || null,
         imageUrl: formData.imageUrl || null,
-        teamId: DEMO_TEAM_ID,
+        teamId: currentUser?.teamId || "",
       };
 
       let res: Response;

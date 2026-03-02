@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { TacoCounter } from "@/components/shared/taco-counter";
 import { NAV_ITEMS, ADMIN_NAV_ITEMS, TACO_EMOJI } from "@/lib/constants";
-import { useDemoUser } from "@/lib/demo-user";
+import { useCurrentUser } from "@/lib/auth-user";
 
 interface HeaderProps {
   onMenuToggle: () => void;
@@ -28,7 +28,7 @@ function getPageTitle(pathname: string): string {
 }
 
 export function Header({ onMenuToggle, onGiveTaco }: HeaderProps) {
-  const { user: demoUser } = useDemoUser();
+  const { user: currentUser } = useCurrentUser();
   const pathname = usePathname();
   const pageTitle = getPageTitle(pathname);
 
@@ -84,8 +84,8 @@ export function Header({ onMenuToggle, onGiveTaco }: HeaderProps) {
       {/* User avatar */}
       <div className="cursor-pointer">
         <UserAvatar
-          name={demoUser?.displayName || "Demo User"}
-          avatarUrl={demoUser?.avatarUrl}
+          name={currentUser?.name || "User"}
+          avatarUrl={currentUser?.avatarUrl}
           size="sm"
         />
       </div>

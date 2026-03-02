@@ -30,7 +30,8 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn, formatRelativeTime } from "@/lib/utils";
-import { DEMO_TEAM_ID, TACO_EMOJI } from "@/lib/constants";
+import { TACO_EMOJI } from "@/lib/constants";
+import { useCurrentUser } from "@/lib/auth-user";
 import type { AnalyticsData, TacoTransaction } from "@/lib/types";
 
 // --- Sparkline mini component ---
@@ -154,6 +155,7 @@ function ChartTooltipContent({
 }
 
 export default function AdminDashboard() {
+  const { user: currentUser } = useCurrentUser();
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [recentActivity, setRecentActivity] = useState<TacoTransaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -163,9 +165,10 @@ export default function AdminDashboard() {
     setLoading(true);
     setError(null);
     try {
+      const teamId = currentUser?.teamId || "";
       const [analyticsRes, activityRes] = await Promise.all([
-        fetch(`/api/analytics?teamId=${DEMO_TEAM_ID}`),
-        fetch(`/api/transactions?teamId=${DEMO_TEAM_ID}&limit=10`),
+        fetch(`/api/analytics?teamId=${teamId}`),
+        fetch(`/api/transactions?teamId=${teamId}&limit=10`),
       ]);
 
       if (!analyticsRes.ok) throw new Error("Failed to load analytics");
@@ -182,7 +185,7 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
     fetchData();

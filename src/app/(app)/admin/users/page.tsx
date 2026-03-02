@@ -40,13 +40,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { DEMO_TEAM_ID, TACO_EMOJI } from "@/lib/constants";
+import { TACO_EMOJI } from "@/lib/constants";
+import { useCurrentUser } from "@/lib/auth-user";
 import type { UserProfile } from "@/lib/types";
 
 type SortKey = "name" | "totalReceived" | "totalGiven";
 type FilterStatus = "all" | "active" | "inactive";
 
 export default function AdminUsersPage() {
+  const { user: currentUser } = useCurrentUser();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +80,7 @@ export default function AdminUsersPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/users?teamId=${DEMO_TEAM_ID}`);
+      const res = await fetch(`/api/users?teamId=${currentUser?.teamId || ""}`);
       if (!res.ok) throw new Error("Failed to load users");
       const data = await res.json();
       setUsers(Array.isArray(data) ? data : data.users || []);
@@ -87,7 +89,7 @@ export default function AdminUsersPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
     fetchUsers();

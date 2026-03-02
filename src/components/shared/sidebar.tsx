@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS, ADMIN_NAV_ITEMS, APP_NAME } from "@/lib/constants";
-import { useDemoUser } from "@/lib/demo-user";
+import { useCurrentUser } from "@/lib/auth-user";
+import { signOut } from "next-auth/react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { TacoCounter } from "@/components/shared/taco-counter";
 
@@ -37,7 +38,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
-  const { user: demoUser } = useDemoUser();
+  const { user: currentUser } = useCurrentUser();
   const pathname = usePathname();
 
   return (
@@ -165,20 +166,23 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         {/* User Profile */}
         <div className="border-t border-amber-100 p-3">
-          <div className="flex items-center gap-3 rounded-xl p-2 hover:bg-amber-50 transition-colors cursor-pointer group">
+          <div
+            onClick={() => signOut({ callbackUrl: "/" })}
+            className="flex items-center gap-3 rounded-xl p-2 hover:bg-amber-50 transition-colors cursor-pointer group"
+          >
             <UserAvatar
-              name={demoUser?.displayName || "Demo User"}
-              avatarUrl={demoUser?.avatarUrl}
+              name={currentUser?.name || "User"}
+              avatarUrl={currentUser?.avatarUrl}
               size="sm"
               showOnlineStatus
               isOnline
             />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-amber-900 truncate">
-                {demoUser?.displayName || "Demo User"}
+                {currentUser?.name || "User"}
               </p>
               <p className="text-xs text-amber-500 truncate">
-                {demoUser?.email || "demo@tacotime.app"}
+                {currentUser?.email || ""}
               </p>
             </div>
             <LogOut className="h-4 w-4 text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity" />

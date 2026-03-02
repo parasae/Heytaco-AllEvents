@@ -6,7 +6,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DEMO_TEAM_ID, TACO_EMOJI } from "@/lib/constants";
+import { TACO_EMOJI } from "@/lib/constants";
+import { useCurrentUser } from "@/lib/auth-user";
 import type { LeaderboardEntry } from "@/lib/types";
 
 type Period = "week" | "month" | "all";
@@ -261,6 +262,7 @@ function RankingsTable({
 
 // --- Main Leaderboard Page ---
 export default function LeaderboardPage() {
+  const { user: currentUser } = useCurrentUser();
   const [sort, setSort] = useState<"received" | "given">("received");
   const [period, setPeriod] = useState<Period>("all");
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
@@ -271,7 +273,7 @@ export default function LeaderboardPage() {
     setLoading(true);
     try {
       const res = await fetch(
-        `/api/users?teamId=${DEMO_TEAM_ID}&sort=${sort}&limit=50`
+        `/api/users?teamId=${currentUser?.teamId || ""}&sort=${sort}&limit=50`
       );
       const data = await res.json();
       const ranked: LeaderboardEntry[] = (data || []).map(
@@ -286,7 +288,7 @@ export default function LeaderboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [sort]);
+  }, [sort, currentUser]);
 
   useEffect(() => {
     fetchLeaderboard();

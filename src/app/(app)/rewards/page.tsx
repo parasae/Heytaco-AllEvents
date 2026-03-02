@@ -13,9 +13,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { DEMO_TEAM_ID, TACO_EMOJI } from "@/lib/constants";
+import { TACO_EMOJI } from "@/lib/constants";
 import { formatDate, cn } from "@/lib/utils";
-import { useDemoUser } from "@/lib/demo-user";
+import { useCurrentUser } from "@/lib/auth-user";
 import type { RewardItem, RedemptionItem } from "@/lib/types";
 
 // Reward type emojis
@@ -227,7 +227,7 @@ function RedeemDialog({
 
 // --- Main Rewards Page ---
 export default function RewardsPage() {
-  const { user: demoUser, loading: loadingUser } = useDemoUser();
+  const { user: currentUser, loading: loadingUser } = useCurrentUser();
   const [rewards, setRewards] = useState<RewardItem[]>([]);
   const [redemptions, setRedemptions] = useState<RedemptionItem[]>([]);
   const [userBalance, setUserBalance] = useState(0);
@@ -238,17 +238,18 @@ export default function RewardsPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    if (!demoUser) {
+    if (!currentUser) {
       setLoading(false);
       return;
     }
     setLoading(true);
 
     try {
+      const teamId = currentUser?.teamId || "";
       const [rewardsRes, redemptionsRes, userRes] = await Promise.all([
-        fetch(`/api/rewards?teamId=${DEMO_TEAM_ID}`),
-        fetch(`/api/redemptions?teamId=${DEMO_TEAM_ID}&userId=${demoUser.id}`),
-        fetch(`/api/users/${demoUser.id}`),
+        fetch(`/api/rewards?teamId=${teamId}`),
+        fetch(`/api/redemptions?teamId=${teamId}&userId=${currentUser.id}`),
+        fetch(`/api/users/${currentUser.id}`),
       ]);
 
       const rewardsData = await rewardsRes.json();
@@ -266,7 +267,7 @@ export default function RewardsPage() {
     } finally {
       setLoading(false);
     }
-  }, [demoUser]);
+  }, [currentUser]);
 
   useEffect(() => {
     if (!loadingUser) {
@@ -280,7 +281,7 @@ export default function RewardsPage() {
   };
 
   const confirmRedeem = async () => {
-    if (!selectedReward || !demoUser) return;
+    if (!selectedReward || !currentUser) return;
     setIsRedeeming(true);
 
     try {
@@ -288,9 +289,9 @@ export default function RewardsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: demoUser.id,
+          userId: currentUser.id,
           rewardId: selectedReward.id,
-          teamId: DEMO_TEAM_ID,
+          teamId: currentUser?.teamId || "",
         }),
       });
 

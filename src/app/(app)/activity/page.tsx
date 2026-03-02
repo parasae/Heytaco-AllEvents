@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DEMO_TEAM_ID, TACO_EMOJI } from "@/lib/constants";
+import { TACO_EMOJI } from "@/lib/constants";
 import { formatRelativeTime, generateTacoEmojis } from "@/lib/utils";
+import { useCurrentUser } from "@/lib/auth-user";
 import type { TacoTransaction } from "@/lib/types";
 
 function getInitials(name: string): string {
@@ -146,6 +147,7 @@ function EmptyState() {
 
 // --- Main Activity Page ---
 export default function ActivityPage() {
+  const { user: currentUser } = useCurrentUser();
   const [tacos, setTacos] = useState<TacoTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -164,7 +166,7 @@ export default function ActivityPage() {
 
       try {
         const params = new URLSearchParams({
-          teamId: DEMO_TEAM_ID,
+          teamId: currentUser?.teamId || "",
           page: pageNum.toString(),
           limit: "15",
         });
@@ -188,7 +190,7 @@ export default function ActivityPage() {
         setLoadingMore(false);
       }
     },
-    []
+    [currentUser]
   );
 
   useEffect(() => {
