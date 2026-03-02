@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { DEFAULT_DAILY_LIMIT, TACO_EMOJI } from "@/lib/constants";
+import { useCurrentUser } from "@/lib/auth-user";
+import { onTacoGiven } from "@/lib/events";
 
 interface TacoCounterProps {
   tacosGiven?: number;
@@ -12,15 +14,56 @@ interface TacoCounterProps {
 }
 
 export function TacoCounter({
-  tacosGiven = 0,
-  dailyLimit = DEFAULT_DAILY_LIMIT,
+  tacosGiven: tacosGivenProp,
+  dailyLimit: dailyLimitProp,
   compact = false,
   className,
 }: TacoCounterProps) {
+  const { user } = useCurrentUser();
+  const [fetchedGiven, setFetchedGiven] = useState(0);
+  const [fetchedLimit, setFetchedLimit] = useState(DEFAULT_DAILY_LIMIT);
+
+  // Determine whether we should self-fetch (no explicit props provided)
+  const shouldFetch = tacosGivenProp === undefined;
+
+  const tacosGiven = tacosGivenProp !== undefined ? tacosGivenProp : fetchedGiven;
+  const dailyLimit = dailyLimitProp !== undefined ? dailyLimitProp : fetchedLimit;
+
   const remaining = Math.max(0, dailyLimit - tacosGiven);
-  const percentage = (tacosGiven / dailyLimit) * 100;
+  const percentage = dailyLimit > 0 ? (tacosGiven / dailyLimit) * 100 : 0;
   const [animating, setAnimating] = useState(false);
   const [displayedGiven, setDisplayedGiven] = useState(tacosGiven);
+
+  const fetchStats = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const res = await fetch(`/api/users/${user.id}/stats`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.daily) {
+          setFetchedGiven(data.daily.tacosGiven);
+          setFetchedLimit(data.daily.dailyLimit);
+        }
+      }
+    } catch {
+      // silently fail - will keep current values
+    }
+  }, [user?.id]);
+
+  // Fetch stats on mount when self-fetching
+  useEffect(() => {
+    if (shouldFetch) {
+      fetchStats();
+    }
+  }, [shouldFetch, fetchStats]);
+
+  // Listen for taco:given events and re-fetch
+  useEffect(() => {
+    if (!shouldFetch) return;
+    return onTacoGiven(() => {
+      fetchStats();
+    });
+  }, [shouldFetch, fetchStats]);
 
   useEffect(() => {
     if (tacosGiven !== displayedGiven) {

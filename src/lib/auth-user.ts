@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 
 export interface AuthUser {
@@ -14,23 +15,20 @@ export interface AuthUser {
 
 /**
  * Hook that returns the current authenticated user from the NextAuth session.
- * Replaces the old useDemoUser hook.
+ * Uses useMemo to maintain stable object references and prevent infinite
+ * re-render loops in components that depend on the user object.
  */
 export function useCurrentUser(): { user: AuthUser | null; loading: boolean } {
   const { data: session, status } = useSession();
 
-  if (status === "loading") {
-    return { user: null, loading: true };
-  }
+  const user = useMemo<AuthUser | null>(() => {
+    if (status === "loading" || !session?.user) {
+      return null;
+    }
 
-  if (!session?.user) {
-    return { user: null, loading: false };
-  }
+    const sessionUser = session.user as Record<string, unknown>;
 
-  const sessionUser = session.user as Record<string, unknown>;
-
-  return {
-    user: {
+    return {
       id: (sessionUser.dbId as string) || "",
       slackId: (sessionUser.slackId as string) || "",
       teamId: (sessionUser.teamId as string) || "",
@@ -38,7 +36,11 @@ export function useCurrentUser(): { user: AuthUser | null; loading: boolean } {
       email: (sessionUser.email as string) || null,
       avatarUrl: (sessionUser.image as string) || null,
       isAdmin: (sessionUser.isAdmin as boolean) || false,
-    },
-    loading: false,
+    };
+  }, [session, status]);
+
+  return {
+    user,
+    loading: status === "loading",
   };
 }

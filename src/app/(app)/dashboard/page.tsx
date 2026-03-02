@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TACO_EMOJI } from "@/lib/constants";
 import { formatRelativeTime, generateTacoEmojis } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/auth-user";
+import { onTacoGiven } from "@/lib/events";
 import type { TacoTransaction, LeaderboardEntry } from "@/lib/types";
 
 function getGreeting(): string {
@@ -391,6 +392,13 @@ export default function DashboardPage() {
       fetchData();
     }
   }, [fetchData, loadingUser]);
+
+  // Re-fetch all dashboard data when tacos are given (from any component)
+  useEffect(() => {
+    return onTacoGiven(() => {
+      fetchData();
+    });
+  }, [fetchData]);
 
   const tacosRemaining = stats?.daily.tacosRemaining ?? 5;
   const dailyLimit = stats?.daily.dailyLimit ?? 5;

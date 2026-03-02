@@ -141,6 +141,7 @@ export default function AdminSettingsPage() {
           welcomeMessage: data.welcomeMessage ?? "",
           slackBotToken: data.slackBotToken ?? "",
           slackSigningSecret: data.slackSigningSecret ?? "",
+          slackConnected: !!(data.slackBotToken && data.slackBotToken.trim()),
         }));
       }
 

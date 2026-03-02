@@ -17,9 +17,9 @@ import { cn } from "@/lib/utils";
 import {
   TACO_EMOJI,
   MAX_TACOS_PER_MESSAGE,
-  DEFAULT_TAGS,
 } from "@/lib/constants";
 import { useCurrentUser } from "@/lib/auth-user";
+import { emitTacoGiven } from "@/lib/events";
 import type { UserProfile } from "@/lib/types";
 import { Search, Send, Loader2, Check, Sparkles } from "lucide-react";
 
@@ -37,6 +37,7 @@ export function GiveTacoDialog({ open, onOpenChange }: GiveTacoDialogProps) {
   const [tacoCount, setTacoCount] = useState(1);
   const [message, setMessage] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [tags, setTags] = useState<Array<{ id: string; name: string; color: string }>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [flyingTacos, setFlyingTacos] = useState<number[]>([]);
@@ -55,6 +56,13 @@ export function GiveTacoDialog({ open, onOpenChange }: GiveTacoDialogProps) {
             ? allUsers.filter((u) => u.id !== currentUser.id)
             : allUsers;
           setUsers(otherUsers);
+        }
+
+        const tagsRes = await fetch(`/api/tags?teamId=${currentUser?.teamId || ""}`);
+        if (tagsRes.ok) {
+          const tagsData = await tagsRes.json();
+          const tagsList = Array.isArray(tagsData) ? tagsData : tagsData.tags || [];
+          setTags(tagsList);
         }
       } catch {
         // silently fail - users list will be empty
@@ -100,11 +108,11 @@ export function GiveTacoDialog({ open, onOpenChange }: GiveTacoDialogProps) {
     [onOpenChange, resetForm]
   );
 
-  const toggleTag = (tagName: string) => {
+  const toggleTag = (tagId: string) => {
     setSelectedTags((prev) =>
-      prev.includes(tagName)
-        ? prev.filter((t) => t !== tagName)
-        : [...prev, tagName]
+      prev.includes(tagId)
+        ? prev.filter((t) => t !== tagId)
+        : [...prev, tagId]
     );
   };
 
@@ -127,6 +135,7 @@ export function GiveTacoDialog({ open, onOpenChange }: GiveTacoDialogProps) {
       });
 
       if (res.ok) {
+        emitTacoGiven();
         // Trigger flying taco animation
         setFlyingTacos(Array.from({ length: tacoCount }, (_, i) => i));
         setShowSuccess(true);
@@ -307,26 +316,26 @@ export function GiveTacoDialog({ open, onOpenChange }: GiveTacoDialogProps) {
                 <span className="text-amber-400 font-normal">(optional)</span>
               </label>
               <div className="flex flex-wrap gap-1.5">
-                {DEFAULT_TAGS.map((tag) => (
+                {tags.map((tag) => (
                   <Badge
-                    key={tag.name}
+                    key={tag.id}
                     variant={
-                      selectedTags.includes(tag.name) ? "default" : "outline"
+                      selectedTags.includes(tag.id) ? "default" : "outline"
                     }
                     className={cn(
                       "cursor-pointer transition-all duration-200",
-                      selectedTags.includes(tag.name)
+                      selectedTags.includes(tag.id)
                         ? "shadow-sm"
                         : "hover:bg-amber-50"
                     )}
                     style={
-                      selectedTags.includes(tag.name)
+                      selectedTags.includes(tag.id)
                         ? { backgroundColor: tag.color + "22", borderColor: tag.color, color: tag.color }
                         : {}
                     }
-                    onClick={() => toggleTag(tag.name)}
+                    onClick={() => toggleTag(tag.id)}
                   >
-                    {selectedTags.includes(tag.name) && (
+                    {selectedTags.includes(tag.id) && (
                       <Sparkles className="mr-1 h-3 w-3" />
                     )}
                     {tag.name}
