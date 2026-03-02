@@ -2,7 +2,7 @@ import { App } from "@slack/bolt";
 import { WebClient } from "@slack/web-api";
 import prisma from "@/lib/prisma";
 import { DEFAULT_DAILY_LIMIT, MAX_TACOS_PER_MESSAGE, TACO_EMOJI } from "@/lib/constants";
-import { Prisma } from "@/generated/prisma";
+import { Prisma } from "@/generated/prisma/client";
 
 // ---------------------------------------------------------------------------
 // Singleton Slack App (HTTP / Events API mode - no socket mode)
