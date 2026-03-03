@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import {
   verifySlackRequest,
   parseTacoMessage,
@@ -55,16 +55,20 @@ export async function POST(request: NextRequest) {
   }
 
   // ---- Acknowledge immediately, then process asynchronously ----
-  // Slack expects a 200 within 3 seconds. We kick off the handler but don't
-  // await it so the response goes back quickly.
+  // Slack expects a 200 within 3 seconds. We use after() to schedule the
+  // event processing to run after the response is sent, which properly
+  // extends the serverless function lifetime on Vercel (via waitUntil).
   const event = body.event as Record<string, unknown> | undefined;
   const teamId = (body.team_id as string) ?? "";
 
   if (event) {
-    // Fire-and-forget (errors are logged internally)
-    handleEvent(event, teamId).catch((err) =>
-      console.error("[slack/events] Unhandled error processing event:", err)
-    );
+    after(async () => {
+      try {
+        await handleEvent(event, teamId);
+      } catch (err) {
+        console.error("[slack/events] Unhandled error processing event:", err);
+      }
+    });
   }
 
   return NextResponse.json({ ok: true });
