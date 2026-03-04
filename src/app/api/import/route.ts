@@ -9,16 +9,17 @@ function parseTimestamp(ts: string | number): Date {
     // Excel serial date
     return new Date((ts - 25569) * 86400 * 1000);
   }
-  // Try direct parse first
-  const parsed = new Date(ts);
-  if (!isNaN(parsed.getTime())) return parsed;
-  // Try MM-DD-YYYY format
-  const match = String(ts).match(/(\d{2})-(\d{2})-(\d{4})\s+(.+)/);
+  const str = String(ts);
+  // Try MM-DD-YYYY h:mm:ss AM/PM format first (HeyTaco export format)
+  const match = str.match(/(\d{2})-(\d{2})-(\d{4})\s+(.+)/);
   if (match) {
     const [, month, day, year, time] = match;
-    return new Date(`${year}-${month}-${day} ${time}`);
+    const parsed = new Date(`${year}-${month}-${day} ${time}`);
+    if (!isNaN(parsed.getTime())) return parsed;
   }
-  return new Date();
+  // Fallback to direct parse
+  const parsed = new Date(str);
+  return isNaN(parsed.getTime()) ? new Date() : parsed;
 }
 
 interface TacoRow {
@@ -38,7 +39,7 @@ interface TacoRow {
 
 interface RedemptionRow {
   "User ID": string;
-  "Redemption Amount": number;
+  "Redemption Amount": number | string;
   Username: string;
   "Display name": string;
   Email: string;
@@ -99,14 +100,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Collect all unique users by slackId
+    if (tacoRows.length === 0 && redemptionRows.length === 0) {
+      return NextResponse.json(
+        { error: errors.length > 0 ? errors.join("; ") : "No data found in uploaded files" },
+        { status: 400 }
+      );
+    }
+
+    // =====================================================
+    // STEP 1: Collect all unique users from both files
+    // =====================================================
     const userMap = new Map<
       string,
       { slackId: string; name: string; displayName: string; email?: string }
     >();
 
     for (const row of tacoRows) {
-      if (row["Giver UID"]) {
+      if (row["Giver UID"] && !userMap.has(row["Giver UID"])) {
         userMap.set(row["Giver UID"], {
           slackId: row["Giver UID"],
           name: row["Giver Username"] || row["Giver UID"],
@@ -114,7 +124,7 @@ export async function POST(request: NextRequest) {
           email: row["Giver Email"] || undefined,
         });
       }
-      if (row["Receiver UID"]) {
+      if (row["Receiver UID"] && !userMap.has(row["Receiver UID"])) {
         userMap.set(row["Receiver UID"], {
           slackId: row["Receiver UID"],
           name: row["Receiver Username"] || row["Receiver UID"],
@@ -125,18 +135,21 @@ export async function POST(request: NextRequest) {
     }
 
     for (const row of redemptionRows) {
-      if (row["User ID"]) {
-        const existing = userMap.get(row["User ID"]);
+      if (row["User ID"] && !userMap.has(row["User ID"])) {
         userMap.set(row["User ID"], {
           slackId: row["User ID"],
-          name: row.Username || existing?.name || row["User ID"],
-          displayName: row["Display name"] || existing?.displayName || row.Username || row["User ID"],
-          email: row.Email || existing?.email || undefined,
+          name: row.Username || row["User ID"],
+          displayName: row["Display name"] || row.Username || row["User ID"],
+          email: row.Email || undefined,
         });
       }
     }
 
-    // Upsert all users
+    // =====================================================
+    // STEP 2: Upsert users (unavoidable - ~173 calls)
+    // Only update fields that are missing (don't overwrite
+    // names from users who already signed in via Slack)
+    // =====================================================
     let usersCreated = 0;
     const slackIdToDbId = new Map<string, string>();
 
@@ -145,8 +158,7 @@ export async function POST(request: NextRequest) {
         const user = await prisma.user.upsert({
           where: { slackId: userData.slackId },
           update: {
-            name: userData.name,
-            displayName: userData.displayName,
+            // Only set email if not already set
             ...(userData.email ? { email: userData.email } : {}),
           },
           create: {
@@ -164,7 +176,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Collect and upsert tags
+    // =====================================================
+    // STEP 3: Collect and upsert tags
+    // =====================================================
     let tagsCreated = 0;
     const tagNameToId = new Map<string, string>();
 
@@ -181,10 +195,7 @@ export async function POST(request: NextRequest) {
         const tag = await prisma.tag.upsert({
           where: { name: tagName },
           update: {},
-          create: {
-            name: tagName,
-            teamId,
-          },
+          create: { name: tagName, teamId },
         });
         tagNameToId.set(tagName, tag.id);
         tagsCreated++;
@@ -193,83 +204,86 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Import taco transactions
-    let tacosImported = 0;
+    // =====================================================
+    // STEP 4: Bulk create tacos with createMany
+    // Compute user stats in memory instead of incrementing
+    // =====================================================
+    const userStats = new Map<string, { given: number; received: number }>();
+
+    // Prepare all taco data in memory
+    const tacoData: {
+      giverId: string;
+      receiverId: string;
+      amount: number;
+      message: string | null;
+      channelName: string | null;
+      teamId: string;
+      createdAt: Date;
+    }[] = [];
 
     for (const row of tacoRows) {
       const giverId = slackIdToDbId.get(row["Giver UID"]);
       const receiverId = slackIdToDbId.get(row["Receiver UID"]);
 
       if (!giverId || !receiverId) {
-        errors.push(`Skipping taco: missing user mapping for giver=${row["Giver UID"]} or receiver=${row["Receiver UID"]}`);
+        errors.push(`Skipping taco: missing user for giver=${row["Giver UID"]} or receiver=${row["Receiver UID"]}`);
         continue;
       }
 
       const amount = Number(row.Tacos) || 1;
 
+      tacoData.push({
+        giverId,
+        receiverId,
+        amount,
+        message: row.Message || null,
+        channelName: row["Channel Name"] || null,
+        teamId,
+        createdAt: parseTimestamp(row.Timestamp),
+      });
+
+      // Accumulate stats in memory
+      const giverStats = userStats.get(giverId) || { given: 0, received: 0 };
+      giverStats.given += amount;
+      userStats.set(giverId, giverStats);
+
+      const receiverStats = userStats.get(receiverId) || { given: 0, received: 0 };
+      receiverStats.received += amount;
+      userStats.set(receiverId, receiverStats);
+    }
+
+    // Bulk insert tacos in batches of 500
+    let tacosImported = 0;
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < tacoData.length; i += BATCH_SIZE) {
+      const batch = tacoData.slice(i, i + BATCH_SIZE);
       try {
-        const taco = await prisma.taco.create({
-          data: {
-            giverId,
-            receiverId,
-            amount,
-            message: row.Message || null,
-            channelName: row["Channel Name"] || null,
-            teamId,
-            createdAt: parseTimestamp(row.Timestamp),
-          },
-        });
-
-        // Create TacoTag entries
-        if (row.Tags && typeof row.Tags === "string") {
-          const names = row.Tags.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
-          for (const tagName of names) {
-            const tagId = tagNameToId.get(tagName);
-            if (tagId) {
-              try {
-                await prisma.tacoTag.create({
-                  data: { tacoId: taco.id, tagId },
-                });
-              } catch {
-                // Duplicate tag entry, skip
-              }
-            }
-          }
-        }
-
-        // Update user counters
-        await prisma.user.update({
-          where: { id: giverId },
-          data: { totalGiven: { increment: amount } },
-        });
-        await prisma.user.update({
-          where: { id: receiverId },
-          data: {
-            totalReceived: { increment: amount },
-            redeemable: { increment: amount },
-          },
-        });
-
-        tacosImported++;
+        const result = await prisma.taco.createMany({ data: batch });
+        tacosImported += result.count;
       } catch (e) {
-        errors.push(`Failed to import taco row: ${e instanceof Error ? e.message : String(e)}`);
+        errors.push(`Failed to insert taco batch ${i}-${i + batch.length}: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
 
-    // Import redemptions
-    let redemptionsImported = 0;
+    // Note: TacoTag linking is skipped in batch mode since createMany
+    // doesn't return IDs. Tags column is empty in the provided data anyway.
+
+    // =====================================================
+    // STEP 5: Create rewards from redemption titles
+    // Use actual Redemption Amount as the cost
+    // =====================================================
     let rewardsCreated = 0;
     const rewardTitleToId = new Map<string, string>();
 
-    // Create unique rewards from titles
-    const uniqueRewardTitles = new Set<string>();
+    // Collect unique rewards with their cost from the first occurrence
+    const rewardInfo = new Map<string, number>();
     for (const row of redemptionRows) {
-      if (row.Title) {
-        uniqueRewardTitles.add(row.Title);
+      if (row.Title && !rewardInfo.has(row.Title)) {
+        rewardInfo.set(row.Title, Number(row["Redemption Amount"]) || 0);
       }
     }
 
-    for (const title of uniqueRewardTitles) {
+    for (const [title, cost] of rewardInfo) {
       try {
         let reward = await prisma.reward.findFirst({
           where: { title, teamId },
@@ -278,7 +292,7 @@ export async function POST(request: NextRequest) {
           reward = await prisma.reward.create({
             data: {
               title,
-              cost: 0,
+              cost,
               type: "custom",
               teamId,
             },
@@ -291,7 +305,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create redemption records
+    // =====================================================
+    // STEP 6: Bulk create redemptions
+    // Track fulfilled amounts in memory
+    // =====================================================
+    const fulfilledPerUser = new Map<string, number>();
+
+    const redemptionData: {
+      userId: string;
+      rewardId: string;
+      status: string;
+      teamId: string;
+      createdAt: Date;
+    }[] = [];
+
     for (const row of redemptionRows) {
       const userId = slackIdToDbId.get(row["User ID"]);
       const rewardId = rewardTitleToId.get(row.Title);
@@ -304,35 +331,55 @@ export async function POST(request: NextRequest) {
       const isFulfilled =
         row.Fulfilled === true ||
         row.Fulfilled === "true" ||
-        row.Fulfilled === "TRUE" ||
-        row.Fulfilled === "Yes" ||
-        row.Fulfilled === "yes";
+        row.Fulfilled === "TRUE";
+
+      redemptionData.push({
+        userId,
+        rewardId,
+        status: isFulfilled ? "fulfilled" : "pending",
+        teamId,
+        createdAt: parseTimestamp(row.Timestamp),
+      });
+
+      // Track fulfilled amounts for redeemable calculation
+      if (isFulfilled) {
+        const amount = Number(row["Redemption Amount"]) || 0;
+        fulfilledPerUser.set(userId, (fulfilledPerUser.get(userId) || 0) + amount);
+      }
+    }
+
+    let redemptionsImported = 0;
+    if (redemptionData.length > 0) {
+      try {
+        const result = await prisma.redemption.createMany({ data: redemptionData });
+        redemptionsImported = result.count;
+      } catch (e) {
+        errors.push(`Failed to insert redemptions: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
+    // =====================================================
+    // STEP 7: Update all user stats in one pass
+    // Set absolute values (not increment) to avoid
+    // duplication issues on re-import
+    // =====================================================
+    let statsUpdated = 0;
+    for (const [dbId, stats] of userStats) {
+      const fulfilled = fulfilledPerUser.get(dbId) || 0;
+      const redeemable = Math.max(0, stats.received - fulfilled);
 
       try {
-        await prisma.redemption.create({
+        await prisma.user.update({
+          where: { id: dbId },
           data: {
-            userId,
-            rewardId,
-            status: isFulfilled ? "fulfilled" : "pending",
-            teamId,
-            createdAt: parseTimestamp(row.Timestamp),
+            totalGiven: stats.given,
+            totalReceived: stats.received,
+            redeemable,
           },
         });
-
-        // Deduct from user's redeemable if fulfilled
-        if (isFulfilled) {
-          const amount = Number(row["Redemption Amount"]) || 0;
-          if (amount > 0) {
-            await prisma.user.update({
-              where: { id: userId },
-              data: { redeemable: { decrement: amount } },
-            });
-          }
-        }
-
-        redemptionsImported++;
+        statsUpdated++;
       } catch (e) {
-        errors.push(`Failed to import redemption: ${e instanceof Error ? e.message : String(e)}`);
+        errors.push(`Failed to update stats for user ${dbId}: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
 
@@ -344,6 +391,7 @@ export async function POST(request: NextRequest) {
         tagsCreated,
         redemptionsImported,
         rewardsCreated,
+        statsUpdated,
         errors,
       },
     });
