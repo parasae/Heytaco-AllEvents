@@ -49,12 +49,12 @@ const TAG_PRESET_COLORS = [
 
 interface TeamSettings {
   teamName: string;
-  dailyLimit: number;
+  dailyTacoLimit: number;
   tacoEmoji: string;
   welcomeMessage: string;
   leaderboardEnabled: boolean;
   reactionsEnabled: boolean;
-  giverMode: boolean;
+  giverModeEnabled: boolean;
   slackBotToken: string;
   slackSigningSecret: string;
   slackConnected: boolean;
@@ -62,12 +62,12 @@ interface TeamSettings {
 
 const defaultSettings: TeamSettings = {
   teamName: "My Team",
-  dailyLimit: 5,
+  dailyTacoLimit: 5,
   tacoEmoji: "🌮",
   welcomeMessage: "Welcome to TacoTime! Give tacos to recognize your teammates.",
   leaderboardEnabled: true,
   reactionsEnabled: true,
-  giverMode: false,
+  giverModeEnabled: false,
   slackBotToken: "",
   slackSigningSecret: "",
   slackConnected: false,
@@ -421,11 +421,11 @@ export default function AdminSettingsPage() {
                 type="number"
                 min={1}
                 max={20}
-                value={settings.dailyLimit}
+                value={settings.dailyTacoLimit}
                 onChange={(e) =>
                   setSettings({
                     ...settings,
-                    dailyLimit: Math.max(1, Math.min(20, parseInt(e.target.value) || 1)),
+                    dailyTacoLimit: Math.max(1, Math.min(20, parseInt(e.target.value) || 1)),
                   })
                 }
               />
@@ -511,9 +511,9 @@ export default function AdminSettingsPage() {
               </p>
             </div>
             <Switch
-              checked={settings.giverMode}
+              checked={settings.giverModeEnabled}
               onCheckedChange={(checked) =>
-                setSettings({ ...settings, giverMode: checked })
+                setSettings({ ...settings, giverModeEnabled: checked })
               }
             />
           </div>
