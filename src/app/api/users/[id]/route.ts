@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { requireAdmin, SessionUser } from "@/lib/auth";
 
 export async function GET(
   request: NextRequest,
@@ -64,16 +65,28 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const adminOrResponse = await requireAdmin();
+    if (adminOrResponse instanceof NextResponse) return adminOrResponse;
+    const adminUser = adminOrResponse as SessionUser;
+
     const { id } = await params;
     const body = await request.json();
 
-    const allowedFields = ["isAdmin", "isActive", "dailyLimit"];
+    const allowedFields = ["isAdmin", "isActive", "dailyLimit", "totalGiven", "totalReceived", "redeemable", "displayName", "email"];
     const updateData: Record<string, unknown> = {};
 
     for (const field of allowedFields) {
       if (body[field] !== undefined) {
         updateData[field] = body[field];
       }
+    }
+
+    // Prevent admin from removing their own admin role
+    if (updateData.isAdmin === false && id === adminUser.dbId) {
+      return NextResponse.json(
+        { error: "You cannot remove your own admin role" },
+        { status: 400 }
+      );
     }
 
     if (Object.keys(updateData).length === 0) {

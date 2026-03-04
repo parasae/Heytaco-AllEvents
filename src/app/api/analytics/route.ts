@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   try {
+    const adminOrResponse = await requireAdmin();
+    if (adminOrResponse instanceof NextResponse) return adminOrResponse;
+
     const { searchParams } = new URL(request.url);
     const teamId = searchParams.get("teamId");
 

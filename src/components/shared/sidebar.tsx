@@ -11,6 +11,7 @@ import {
   Users,
   Gift,
   Settings,
+  Upload,
   ChevronLeft,
   LogOut,
 } from "lucide-react";
@@ -29,6 +30,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   BarChart3,
   Users,
   Gift,
+  Upload,
   Settings,
 };
 
@@ -118,45 +120,47 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             })}
           </div>
 
-          {/* Divider */}
-          <div className="mx-3 border-t border-amber-100" />
-
-          {/* Admin nav */}
-          <div className="mt-2">
-            <p className="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-amber-400">
-              Admin
-            </p>
-            {ADMIN_NAV_ITEMS.map((item) => {
-              const Icon = iconMap[item.icon];
-              const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={onClose}
-                  className={cn(
-                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                    isActive
-                      ? "bg-amber-50 text-amber-900 shadow-sm shadow-amber-100/50"
-                      : "text-amber-700/70 hover:bg-amber-50/60 hover:text-amber-800"
-                  )}
-                >
-                  {Icon && (
-                    <Icon
+          {/* Admin nav - only visible to admins */}
+          {currentUser?.isAdmin && (
+            <>
+              <div className="mx-3 border-t border-amber-100" />
+              <div className="mt-2">
+                <p className="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-amber-400">
+                  Admin
+                </p>
+                {ADMIN_NAV_ITEMS.map((item) => {
+                  const Icon = iconMap[item.icon];
+                  const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={onClose}
                       className={cn(
-                        "h-5 w-5 shrink-0 transition-colors",
-                        isActive ? "text-amber-500" : "text-amber-400/70"
+                        "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                        isActive
+                          ? "bg-amber-50 text-amber-900 shadow-sm shadow-amber-100/50"
+                          : "text-amber-700/70 hover:bg-amber-50/60 hover:text-amber-800"
                       )}
-                    />
-                  )}
-                  <span>{item.label}</span>
-                  {isActive && (
-                    <div className="ml-auto h-1.5 w-1.5 rounded-full bg-amber-500" />
-                  )}
-                </Link>
-              );
-            })}
-          </div>
+                    >
+                      {Icon && (
+                        <Icon
+                          className={cn(
+                            "h-5 w-5 shrink-0 transition-colors",
+                            isActive ? "text-amber-500" : "text-amber-400/70"
+                          )}
+                        />
+                      )}
+                      <span>{item.label}</span>
+                      {isActive && (
+                        <div className="ml-auto h-1.5 w-1.5 rounded-full bg-amber-500" />
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </nav>
 
         {/* Taco Counter */}

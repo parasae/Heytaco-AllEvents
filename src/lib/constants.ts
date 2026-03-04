@@ -20,6 +20,7 @@ export const ADMIN_NAV_ITEMS = [
   { label: "Overview", href: "/admin", icon: "BarChart3" },
   { label: "Users", href: "/admin/users", icon: "Users" },
   { label: "Rewards", href: "/admin/rewards", icon: "Gift" },
+  { label: "Import Data", href: "/admin/import", icon: "Upload" },
   { label: "Settings", href: "/admin/settings", icon: "Settings" },
 ] as const;
 

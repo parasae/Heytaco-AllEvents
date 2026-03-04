@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,6 +31,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const adminOrResponse = await requireAdmin();
+    if (adminOrResponse instanceof NextResponse) return adminOrResponse;
+
     const body = await request.json();
     const { title, description, cost, quantity, imageUrl, type, teamId } = body;
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { DEMO_TEAM_ID, DEFAULT_TAGS } from "@/lib/constants";
+import { requireAdmin } from "@/lib/auth";
 
 interface SampleUser {
   name: string;
@@ -110,6 +111,9 @@ function randomDate(daysBack: number): Date {
 
 export async function POST() {
   try {
+    const adminOrResponse = await requireAdmin();
+    if (adminOrResponse instanceof NextResponse) return adminOrResponse;
+
     // Get existing user IDs for cleanup
     const existingUsers = await prisma.user.findMany({
       where: { teamId: DEMO_TEAM_ID },
