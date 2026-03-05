@@ -7,10 +7,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { TACO_EMOJI } from "@/lib/constants";
 import { formatRelativeTime, generateTacoEmojis } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/auth-user";
 import type { TacoTransaction } from "@/lib/types";
+import { Trash2 } from "lucide-react";
 
 function getInitials(name: string): string {
   return name
@@ -43,7 +52,15 @@ function TimelineSkeleton() {
 }
 
 // --- Timeline Event ---
-function TimelineEvent({ taco }: { taco: TacoTransaction }) {
+function TimelineEvent({
+  taco,
+  isAdmin,
+  onDelete,
+}: {
+  taco: TacoTransaction;
+  isAdmin: boolean;
+  onDelete: (taco: TacoTransaction) => void;
+}) {
   return (
     <div className="group flex gap-4">
       {/* Timeline line + dot */}
@@ -56,37 +73,50 @@ function TimelineEvent({ taco }: { taco: TacoTransaction }) {
 
       {/* Content */}
       <div className="min-w-0 flex-1 pb-8">
-        {/* Header: Giver -> Receiver */}
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          {/* Giver */}
-          <div className="flex items-center gap-1.5">
-            <Avatar className="h-6 w-6">
-              <AvatarImage src={taco.giver.avatarUrl || undefined} />
-              <AvatarFallback className="text-[10px]">
-                {getInitials(taco.giver.displayName)}
-              </AvatarFallback>
-            </Avatar>
-            <span className="font-semibold text-amber-950">
-              {taco.giver.displayName}
+        {/* Header: Giver -> Receiver + Admin delete */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            {/* Giver */}
+            <div className="flex items-center gap-1.5">
+              <Avatar className="h-6 w-6">
+                <AvatarImage src={taco.giver.avatarUrl || undefined} />
+                <AvatarFallback className="text-[10px]">
+                  {getInitials(taco.giver.displayName)}
+                </AvatarFallback>
+              </Avatar>
+              <span className="font-semibold text-amber-950">
+                {taco.giver.displayName}
+              </span>
+            </div>
+
+            <span className="text-amber-400">
+              gave {generateTacoEmojis(taco.amount)} to
             </span>
+
+            {/* Receiver */}
+            <div className="flex items-center gap-1.5">
+              <Avatar className="h-6 w-6">
+                <AvatarImage src={taco.receiver.avatarUrl || undefined} />
+                <AvatarFallback className="text-[10px]">
+                  {getInitials(taco.receiver.displayName)}
+                </AvatarFallback>
+              </Avatar>
+              <span className="font-semibold text-amber-950">
+                {taco.receiver.displayName}
+              </span>
+            </div>
           </div>
 
-          <span className="text-amber-400">
-            gave {generateTacoEmojis(taco.amount)} to
-          </span>
-
-          {/* Receiver */}
-          <div className="flex items-center gap-1.5">
-            <Avatar className="h-6 w-6">
-              <AvatarImage src={taco.receiver.avatarUrl || undefined} />
-              <AvatarFallback className="text-[10px]">
-                {getInitials(taco.receiver.displayName)}
-              </AvatarFallback>
-            </Avatar>
-            <span className="font-semibold text-amber-950">
-              {taco.receiver.displayName}
-            </span>
-          </div>
+          {/* Admin delete button */}
+          {isAdmin && (
+            <button
+              onClick={() => onDelete(taco)}
+              className="shrink-0 rounded-md p-1.5 text-red-300 opacity-0 transition-all duration-150 hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+              title="Remove entry (admin)"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
 
         {/* Message bubble */}
@@ -145,9 +175,59 @@ function EmptyState() {
   );
 }
 
+// --- Delete Confirmation Dialog ---
+function DeleteConfirmDialog({
+  taco,
+  open,
+  deleting,
+  onConfirm,
+  onCancel,
+}: {
+  taco: TacoTransaction | null;
+  open: boolean;
+  deleting: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  if (!taco) return null;
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Remove taco entry?</DialogTitle>
+          <DialogDescription>
+            This will permanently delete{" "}
+            <span className="font-medium text-amber-700">
+              {taco.giver.displayName}
+            </span>
+            &apos;s {taco.amount === 1 ? "taco" : `${taco.amount} tacos`} to{" "}
+            <span className="font-medium text-amber-700">
+              {taco.receiver.displayName}
+            </span>{" "}
+            and reverse all associated stats. This cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="outline" onClick={onCancel} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button
+            onClick={onConfirm}
+            disabled={deleting}
+            className="bg-red-500 text-white hover:bg-red-600"
+          >
+            {deleting ? "Removing…" : "Remove entry"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // --- Main Activity Page ---
 export default function ActivityPage() {
   const { user: currentUser } = useCurrentUser();
+  const isAdmin = currentUser?.isAdmin ?? false;
   const [tacos, setTacos] = useState<TacoTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -155,6 +235,10 @@ export default function ActivityPage() {
   const [hasMore, setHasMore] = useState(true);
   const [searchUser, setSearchUser] = useState("");
   const [searchTag, setSearchTag] = useState("");
+
+  // Delete dialog state
+  const [pendingDelete, setPendingDelete] = useState<TacoTransaction | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchTacos = useCallback(
     async (pageNum: number, append: boolean = false) => {
@@ -201,6 +285,22 @@ export default function ActivityPage() {
     const nextPage = page + 1;
     setPage(nextPage);
     fetchTacos(nextPage, true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/tacos/${pendingDelete.id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setTacos((prev) => prev.filter((t) => t.id !== pendingDelete.id));
+        setPendingDelete(null);
+      }
+    } finally {
+      setDeleting(false);
+    }
   };
 
   // Client-side filtering
@@ -285,7 +385,12 @@ export default function ActivityPage() {
           <>
             <div className="pl-1">
               {filtered.map((taco) => (
-                <TimelineEvent key={taco.id} taco={taco} />
+                <TimelineEvent
+                  key={taco.id}
+                  taco={taco}
+                  isAdmin={isAdmin}
+                  onDelete={setPendingDelete}
+                />
               ))}
             </div>
 
@@ -336,6 +441,15 @@ export default function ActivityPage() {
           </>
         )}
       </div>
+
+      {/* Delete confirmation dialog */}
+      <DeleteConfirmDialog
+        taco={pendingDelete}
+        open={pendingDelete !== null}
+        deleting={deleting}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }
